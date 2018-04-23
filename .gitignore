@@ -1,0 +1,10 @@
+*.png
+.vscode/
+20170*.zip
+build.settings
+config.lua
+com2tcp
+build
+misc
+fiscal
+LaunchScreen.storyboardc
