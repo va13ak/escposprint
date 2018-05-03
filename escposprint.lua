@@ -223,7 +223,7 @@
                 if (yyy <= #img) then
                     local col = img[yyy][x]
                     local v = self:shouldPrintColor( col )
-                    print( "shouldPrintColor(", col, "): ", v and 1 or 0)
+                    --print( "shouldPrintColor(", col, "): ", v and 1 or 0)
                     slice = bor( slice, lshift( ( v and 1 or 0), (7 - b + 1) ) )
                 end
             end
@@ -247,6 +247,12 @@
 
 
     function escPosPrinter:connect( ... )
+        if self.client then
+            if pcall( self.client.getstats, self.client ) then
+                return true
+            end
+        end
+
         local host = arg[1] or self.host or "127.0.0.1"
         local port = arg[2] or self.port or 9100
         print( "----- connecting to "..tostring( port ).." on "..tostring( host ) )
@@ -259,7 +265,11 @@
 
 
     function escPosPrinter:new( ... )
-        newObj = { host=arg[1], port=arg[2] }
+        if (tostring(arg[1]) or ""):find("tcp{client}") then
+            newObj = { client = arg[1] }
+        else
+            newObj = { host=arg[1], port=arg[2] }
+        end
         -- set up newObj
         self.__index = self
         return setmetatable(newObj, self)
@@ -275,17 +285,17 @@
             vtype = type( v )
             if vtype == "string" then
                 self.client:send( v )
-                print( "'"..v.."'")
+                --print( "'"..v.."'")
             elseif vtype == "number" then
                 self.client:send( string.char( v ) )    -- temporary
-                print( "("..v..")")
+                --print( "("..v..")")
             elseif vtype == "table" then
-                print( v )
-                print( unpack( v ) )
+                --print( v )
+                --print( unpack( v ) )
                 self:print( unpack( v ) )
             else
                 self.client:send( tostring( v ))
-                print( "'"..v.."'")
+                --print( "'"..v.."'")
             end
         end
     end
@@ -315,7 +325,7 @@
     --]]
     function escPosPrinter:printImage( image, ... )
         local pixels = getPixelsSlow( image, arg[1] )
-        print("----------getPixelsSlow")
+        --print("----------getPixelsSlow")
         for i = 1, #pixels do
             str = ""
             for j = 1, #pixels[i] do        -- prints each "row" of the QR code on a line, one at a time
@@ -328,7 +338,7 @@
                     str = str.."X"
                 end
             end
-            print(str)
+            --print(str)
         end
 
         self:print( self.SET_LINE_SPACING_24 )
@@ -408,12 +418,22 @@
         local data = arg[1] or ""
         local size = arg[2] or 5
         local ec_level = arg[3] or 0
+        if type( arg[2] ) == "table" then
+            size = arg[2].size or size
+            ec_level = arg[2].ec_level or ec_level
+        end
 
-        local ok, tab_or_message = qrencode.qrcode( codeword, ec_level )
+        local ok, tab_or_message = qrencode.qrcode( data, ec_level )
         if not ok then
             print(tab_or_message)
+
         else
-            printer:printImage( tab_or_message, size )
+            local bkupTreatPixelAsBlack = self.treatPixelAsBlack
+            self.treatPixelAsBlack = function ( x ) return (x > 0) end
+
+            self:printImage( tab_or_message, size )
+
+            self.treatPixelAsBlack = bkupTreatPixelAsBlack
         end
     end
 
@@ -421,21 +441,36 @@
         local data = arg[1] or ""
         local size = arg[2] or 5
         local ec_level = arg[3] or 0
+        if type( arg[2] ) == "table" then
+            size = arg[2].size or size
+            ec_level = arg[2].ec_level or ec_level
+        end
 
-        local ok, tab_or_message = qrencode.qrcode( codeword, ec_level )
+        local ok, tab_or_message = qrencode.qrcode( data, ec_level )
         if not ok then
             print(tab_or_message)
+
         else
-            printer:printNVImage( tab_or_message, size )
+            local bkupTreatPixelAsBlack = self.treatPixelAsBlack
+            self.treatPixelAsBlack = function ( x ) return (x > 0) end
+
+            self:printNVImage( tab_or_message, size )
+
+            self.treatPixelAsBlack = bkupTreatPixelAsBlack
         end
 
     end
 
     function escPosPrinter:printQR( ... )
         local data = arg[1] or ""
-        local size = arg[2] or 5
-        local ec_level = arg[3] or 0
-        local print_method = arg[4] or 0
+        local size = arg[3] or 5
+        local ec_level = arg[4] or 0
+        local print_method = arg[2] or 0
+        if type( arg[2] ) == "table" then
+            size = arg[3].size or size
+            ec_level = arg[4].ec_level or ec_level
+            print_method = arg[2].print_method or print_method
+        end
 
         if print_method == 1 then
             return self:printQRNVImage( data, size, ec_level )
